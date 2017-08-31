@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using AVFoundation;
 using CoreFoundation;
+using CoreGraphics;
 using CoreMedia;
 using Foundation;
 using Plugin.MediaManager.Abstractions;
@@ -63,7 +65,8 @@ namespace Plugin.MediaManager
             }
         }
 
-        private NSUrl nsUrl { get; set; }
+        private NSUrl nsVideoUrl { get; set; }
+        private NSUrl nsCaptionUrl { get; set; }
 
         public float Rate
         {
@@ -206,7 +209,12 @@ namespace Plugin.MediaManager
         public async Task Play(IMediaFile mediaFile = null)
         {
             if (mediaFile != null)
-                nsUrl = new NSUrl(mediaFile.Url);
+                nsVideoUrl = new NSUrl(mediaFile.Url);
+
+            if (!string.IsNullOrWhiteSpace(ClosedCaption))
+                nsCaptionUrl = new NSUrl(ClosedCaption);
+            else
+                nsCaptionUrl = null;
 
             if (Status == MediaPlayerStatus.Paused)
             {
@@ -218,11 +226,56 @@ namespace Plugin.MediaManager
 
             try
             {
-                // Start off with the status LOADING.
                 Status = MediaPlayerStatus.Buffering;
 
-                var nsAsset = AVAsset.FromUrl(nsUrl);
-                var streamingItem = AVPlayerItem.FromAsset(nsAsset);
+                var composition = new AVMutableComposition();
+                var compositionTrackVideo = composition.AddMutableTrack(AVMediaType.Video, 0);
+                var compositionTrackAudio = composition.AddMutableTrack(AVMediaType.Audio, 0);
+                var compositionTrackCaption = composition.AddMutableTrack(AVMediaType.Text, 0);
+
+                AVAsset videoAsset = null;
+                if (nsVideoUrl != null)
+                    videoAsset = AVAsset.FromUrl(nsVideoUrl);
+
+                if (videoAsset == null)
+                    return;
+                
+                AVAsset captionAsset = null;
+                if (nsCaptionUrl != null)
+                    captionAsset = AVAsset.FromUrl(nsCaptionUrl);
+
+                AVAssetTrack videoTrack = null;
+                if (videoAsset.TracksWithMediaType(AVMediaType.Video) != null && videoAsset.TracksWithMediaType(AVMediaType.Video).Length > 0)
+                    videoTrack = videoAsset.TracksWithMediaType(AVMediaType.Video)[0];
+                
+                AVAssetTrack audioTrack = null;
+                if (videoAsset.TracksWithMediaType(AVMediaType.Audio) != null && videoAsset.TracksWithMediaType(AVMediaType.Audio).Length > 0)
+                    audioTrack = videoAsset.TracksWithMediaType(AVMediaType.Audio)[0];
+
+                AVAssetTrack captionTrack = null;
+                if (captionAsset != null && captionAsset.TracksWithMediaType(AVMediaType.Text) != null && captionAsset.TracksWithMediaType(AVMediaType.Text).Length > 0)
+                    captionTrack = captionAsset.TracksWithMediaType(AVMediaType.Text)[0];
+
+
+                // Create a video composition and preset some settings
+
+                NSError error = null;
+
+                var assetTimeRange = new CMTimeRange { Start = CMTime.Zero, Duration = videoAsset.Duration };
+
+                if (videoTrack != null)
+                    compositionTrackVideo.InsertTimeRange(assetTimeRange, videoTrack, CMTime.Zero, out error);
+                if (audioTrack != null)
+                    compositionTrackAudio.InsertTimeRange(assetTimeRange, audioTrack, CMTime.Zero, out error);
+                if (captionTrack != null)
+                    compositionTrackCaption.InsertTimeRange(assetTimeRange, captionTrack, CMTime.Zero, out error);
+
+                if (error != null)
+                {
+                    System.Diagnostics.Debug.WriteLine(error.Description);
+                }
+
+                var streamingItem = AVPlayerItem.FromAsset(composition);
 
                 Player.CurrentItem?.RemoveObserver(this, new NSString("status"));
 
@@ -237,7 +290,7 @@ namespace Plugin.MediaManager
                     StatusObservationContext.Handle);
 
                 NSNotificationCenter.DefaultCenter.AddObserver(AVPlayerItem.DidPlayToEndTimeNotification,
-                                                               notification => MediaFinished?.Invoke(this, new MediaFinishedEventArgs(mediaFile)), Player.CurrentItem);
+                notification => MediaFinished?.Invoke(this, new MediaFinishedEventArgs(mediaFile)), Player.CurrentItem);
 
                 Player.Play();
             }
@@ -366,6 +419,19 @@ namespace Plugin.MediaManager
                         throw new ArgumentOutOfRangeException();
                 }
                 _aspectMode = value;
+            }
+        }
+
+        private string _closedCaption;
+        public string ClosedCaption
+        {
+            get
+            {
+                return _closedCaption;
+            }
+            set
+            {
+                _closedCaption = value;
             }
         }
     }

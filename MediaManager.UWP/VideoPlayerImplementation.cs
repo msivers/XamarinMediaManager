@@ -267,6 +267,19 @@ namespace Plugin.MediaManager
 
         public VideoAspectMode AspectMode { get; set; }
 
+        private string _closedCaption;
+        public string ClosedCaption
+        {
+            get
+            {
+                return _closedCaption;
+            }
+            set
+            {
+                _closedCaption = value;
+            }
+        }
+
         private async Task<MediaSource> CreateMediaSource(IMediaFile mediaFile)
         {
             switch (mediaFile.Availability)

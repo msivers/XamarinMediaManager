@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Android.Media;
@@ -108,8 +108,21 @@ namespace Plugin.MediaManager
 			set {
 				//TODO: Wrap videoplayer to respect aspectmode
 				_aspectMode = value;
-			} 
-		}        
+			}
+        }
+
+        private string _closedCaption;
+        public string ClosedCaption
+        {
+            get
+            {
+                return _closedCaption;
+            }
+            set
+            {
+                _closedCaption = value;
+            }
+        }
 
         public IMediaFile CurrentFile { get; set; }
         private Android.Net.Uri currentUri { get; set; }

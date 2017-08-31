@@ -21,5 +21,10 @@ namespace Plugin.MediaManager.Abstractions
         /// The aspect mode of the video
         /// </summary>
         VideoAspectMode AspectMode { get; set; }
+
+        /// <summary>
+        /// A url for closed caption file
+        /// </summary>
+        string ClosedCaption { get; set; }
     }
 }
